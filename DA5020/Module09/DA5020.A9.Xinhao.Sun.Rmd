@@ -1,0 +1,160 @@
+---
+title: "DA5020.A9.Xinhao.Sun"
+author: "Xinhao Sun"
+date: "11/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## initialization
+```{r, message=FALSE}
+rm(list=ls())
+library(tidyverse)
+library(forecast)
+```
+
+## Question 1
+```{r}
+url = "https://data.sfgov.org/api/views/rkru-6vcg/rows.csv?accessType=DOWNLOAD"
+data = read_csv(url)
+glimpse(data)
+```
+
+## Question 2
+```{r}
+data_Mar = data %>%
+  filter(`GEO Summary` == "Domestic") %>%
+  mutate(Date = as.Date(paste0(`Activity Period`, "01"), format="%Y%m%d")) %>%
+  mutate(Year = format(Date, "%Y"), Month = format(Date, "%b")) %>%
+  filter(Month == "Mar") %>%
+  group_by(Year) %>%
+  summarise(total_passengers = sum(`Passenger Count`))
+
+  # as.Date must be three elements of date
+  #mutate(Date = as.Date(`Activity Period`, format="%Y%m"))
+
+glimpse(data_Mar)
+
+#
+ggplot(data_Mar, aes(x = Year, y = total_passengers, group = 1)) +
+  geom_point()+
+  geom_line() +
+  labs( y = "Counts", title = "Total Passenger traveled in March each year.") +
+  theme_bw()
+
+```
+
+##### From the line chart above, we can see the number of passenger in 2020 and 2021 drop significantly compared to 2019 since the pademic hited the U.S. , and government decided to lock down the whole country.
+
+## Question 3
+```{r}
+# SMA
+sma_19 = sum(data_Mar[11:13,2]) / 3
+sma_error_19 = as.numeric(data_Mar[14,2]) - sma_19
+sma_error_19
+# for comparison, the rate should be more reasonable
+sma_error_rate_19 = sma_error_19 / as.numeric(data_Mar[14,2])
+sma_error_rate_19
+```
+
+#### Although the error of the prediction by SMA seems large with 64059.67 people, its error rate only 1.8%, which is acceptable.
+
+## Question 4
+```{r}
+#WMA
+weights_wma = c(3,5,7)
+wma_19 = sum(data_Mar[11:13,2] * weights_wma) / sum(weights_wma)
+wma_error_19 = as.numeric(data_Mar[14,2]) - wma_19
+wma_error_19
+# for comparison, the rate should be more reasonable
+wma_error_rate_19 = wma_error_19 / as.numeric(data_Mar[14,2])
+wma_error_rate_19
+```
+
+#### Comared with results of SMA, the results of WMA are more accurate both in quantity(17188.73) and rate(0.4%).
+
+## Question 5
+```{r}
+# EWMA
+#be careful
+#3:10-3
+#data_Mar[3:nrow(data_Mar)-3,]
+#data_Mar[3:nrow(data_Mar)-4,]
+
+pre_ses_data = data_Mar[3:(nrow(data_Mar)-4),]
+ses_data = pre_ses_data[['total_passengers']]
+
+# learn from overflow
+ses_2019 = ses(ses_data,
+    h = 1,
+    alpha = 0.7,
+    initial = "simple")$mean[1]
+ses_error_19 = ses_2019 - as.numeric(data_Mar[14,2])
+ses_error_19
+# for comparison, the rate should be more reasonable
+ses_error_rate_19 = ses_error_19 / as.numeric(data_Mar[14,2])
+ses_error_rate_19
+```
+
+#### Although SES is more complicate than WMA, but its results is less accurate than that with 46005.37 and 1.3%.
+
+## Question 6
+```{r}
+data_Mar <- data_Mar %>% mutate(Year = as.numeric(Year))
+str(data_Mar)
+lm_model <- lm(total_passengers ~ Year, data = data_Mar[3:13,])
+lm_model
+
+# according to the result above
+predict_people = function(Year) 131769 * Year -262394559
+predict_error = function(Year) {
+  a = predict_people(Year)
+  b = a - as.numeric(data_Mar[data_Mar$Year == Year,2])
+  c = b / predict_people(Year)
+  sprintf("The predicted values, error and error rate are %.2f, %.2f, %.4f",a,b,c)
+}
+predict_people(2019) 
+predict_people(2020)
+
+predict_error(2019)
+predict_error(2020)
+```
+#### Compared with the prediction for 2019, the forecast for 2020 is unacceptable. But this is due to the black swan event, Covid-19 began to spread over the world.
+
+
+## question 7
+```{r}
+ses_res = ses(ses_data,
+                alpha = 0.7,
+                initial = "simple")$fitted
+#ses_res
+mse_ses_data = pre_ses_data %>% 
+  mutate(SE = (total_passengers - ses_res)^2) 
+
+mse_ses_data
+mse_ses = mse_ses_data %>%
+  pull(SE) %>%
+  mean()
+mse_ses
+```
+
+```{r}
+
+mse_lm_data = pre_ses_data %>% 
+  mutate(lm_model_prediction = (lm_model$coeff[2] * data_Mar[3:13,1] + lm_model$coeff[1])$Year) %>%
+  mutate(SE = (total_passengers - lm_model_prediction)^2)
+
+mse_lm_data
+mse_lm = mse_lm_data %>%
+  pull(SE) %>%
+  mean()
+mse_lm
+
+mse_ses > mse_lm
+```
+
+#### From the values above, it is obvious to find that the MSE for exponential model is larger than linear regression model for years from 2008 to 2018

@@ -1,0 +1,142 @@
+---
+title: "DA5020.A6.Xinhao.Sun"
+author: "Xinhao Sun"
+date: "10/23/2022"
+output: html_document
+---
+
+# Bonus
+## I have completed the data camps “Introduction to SQL” and “Intermediate SQL".
+
+
+# Question 1
+
+
+
+```{SQL}
+.open Documents/DA5020/module06/imdb.db
+.tables
+CREATE TABLE director_info(
+Director_ID PRIMARY KEY,
+Director_Name TEXT);
+.tables
+.separator ","
+.import Documents/DA5020/module06/directors.csv director_info
+SELECT * FROM director_info;
+.save Documents/DA5020/module06/imdb2.db
+```
+
+
+# Question 2
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# clear the environment
+rm(list=ls())
+# load the package we need
+library(RSQLite)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+```
+
+# 1)
+```{r}
+con = dbConnect(SQLite(), "imdb2.db")
+dbListTables(con)
+sqlCmd1 = "SELECT COUNT(*) FROM movie_info"
+sqlCmd2 = "SELECT COUNT(*) FROM director_info"
+nrow1 = dbGetQuery(con, sqlCmd1)
+nrow2 = dbGetQuery(con, sqlCmd2)
+# look the result
+c(nrow1,nrow2)
+# print the result, using 'as.integer' to convert into correct format 
+sprintf("movie_info has %d of rows, director_info has %d of rows", as.integer(nrow1), as.integer(nrow2))
+```
+
+# 2)
+```{r}
+# set the parament we need
+min_year = 2010
+max_year = 2020
+sqlCmd3 = "SELECT COUNT(*) AS 'Sum' FROM movie_info WHERE Release_Year >= ? AND Release_Year <= ?"
+sum = dbGetQuery(con, sqlCmd3, params = c(min_year,max_year))
+sum
+sprintf("There are %d movies released between 2010 and 2020", as.integer(sum))
+
+# visualize the results
+sqlCmd4 = "SELECT Release_Year,COUNT(Release_Year) AS number FROM movie_info WHERE Release_Year >= ? AND Release_Year <= ? GROUP BY Release_Year"
+fre_data = dbGetQuery(con, sqlCmd4, params = c(min_year,max_year))
+# fre_data
+ggplot(fre_data, aes(Release_Year, number)) + 
+  geom_point(color = "blue") + 
+  geom_line(aes(Release_Year, number),group=1) +
+  theme_bw()
+
+```
+
+```{r, eval=FALSE}
+
+# second method by using 'dbSendQuery' and 'dbFetch'
+sqlCmd3 = "SELECT COUNT(*) AS 'Summation' FROM movie_info WHERE Release_Year >= :x AND Release_Year <= :y"
+query = dbSendQuery(con, sqlCmd3)
+dbBind(query, params = list(x = 2010, y = 2020))
+rs = dbFetch(query)
+print(rs)
+
+
+```
+# 3)
+```{r}
+sqlCmd5 = "SELECT IMDB_Rating FROM movie_info WHERE Genre LIKE '%Action%'"
+rs <- dbGetQuery(con, sqlCmd5)
+sprintf("Min rating of action movies is %.2f, Max rating is %.2f, average rating is %.2f.",min(rs), max(rs), mean(rs$IMDB_Rating))
+```
+
+# 4)
+```{r}
+sqlCmd6 = "SELECT Series_Title, Genre, Gross FROM movie_info WHERE Gross != 'NA' ORDER BY Gross DESC LIMIT 25 ;"
+top_gross = dbGetQuery(con, sqlCmd6)
+kable(top_gross) %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1:3, bold = T, color = "white", background = "#D7261E")
+```
+
+# 5)
+```{r}
+sqlCmd7 = "SELECT director_info.Director_Name, SUM(Gross) AS 'OVERALL' 
+FROM movie_info 
+LEFT JOIN director_info ON director_info.Director_ID = movie_info.Director_ID 
+GROUP BY movie_info.Director_ID 
+ORDER BY OVERALL DESC LIMIT 20;"
+top_dir = dbGetQuery(con, sqlCmd7)
+
+top_dir%>% kable() %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1:3, bold = T, color = "white", background = "#D7261E")
+```
+
+# 6)
+```{r}
+verifyDirector <- function(x){
+  dir_name = x
+  sqlCmd8 = "SELECT * 
+  FROM director_info 
+  WHERE Director_Name = ?;"
+  result = dbGetQuery(con, sqlCmd8, params = dir_name)
+  if(nrow(result) == 0){
+    sprintf("%s is not found in database", x)
+    } 
+  else{
+    sprintf("%s is found in database", x)
+  }
+}
+verifyDirector("Xinhao Sun")
+verifyDirector("Steven Spielberg")
+
+```
+
+```{r close}
+dbDisconnect(con)
+```
+

@@ -1,0 +1,106 @@
+---
+title: "DA5020.A1.Xinhao.Sun.Rmd"
+author: "Xinhao Sun"
+date: "9/11/2022"
+output: html_document
+---
+
+## Question 1
+### 1)
+```{r}
+increment <- function(x, inc = 1) {
+  x <- x + inc
+  x
+}
+count <- 5
+a <- increment(count, 2)
+b <- increment(count)
+count <- increment(count, 2)
+```
+
+#### I complete the data camp "Introduction to R". 
+### 2)
+```{r}
+age = c("young", "middle", "old")
+sex = c("female", "male", "male")
+
+my_df = data.frame(age,sex)
+my_df
+```
+
+#### A data frame has the variables of a dataset as columns and the observations as rows.(datacamp,2022)
+
+## Question 2
+```{r}
+cars = c("Truck", "Car", "SUV")
+mpg = c(11, 30, 24) 
+cost = c(45000,25000,35000)
+
+cars_df = data.frame(cars,mpg,cost)
+cars_df
+
+
+## a
+### Select row 1 in column 3, what was selected? 
+ cars_df[1,3]
+### Select rows 1 through 3, what was selected? 
+ cars_df[1:3,]
+### Select the last column, what was selected?
+ cars_df[,-1]
+
+```
+# Due the same names of variable, we need to clear the enviroment
+```{r}
+rm(list = ls())
+```
+
+
+## Question 3
+```{r}
+head(mtcars,3)
+tail(mtcars,5)
+
+```
+## Question 4
+```{r}
+
+mtcars[,c("am","vs")] # categorical variables
+mtcars[,c("mpg","hp")] # continuous variables
+```
+## Question 5
+```{r error=TRUE}
+ggplot(mtcars, aes(x=disp, y=mpg))
+# for knit, we need to set error = TRUE
+```
+#### the chart is not displayed. we show use this code below to display 
+```{r}
+library(ggplot2) # ggplot is out-of-date
+ggplot(mtcars, aes(x=disp, y=mpg))+geom_point()
+```
+
+## Question 6
+
+```{r}
+
+library(ggplot2)
+str(mpg)
+
+#use ggplot to draw scatter plot
+ggplot(data = mpg) +
+geom_point(mapping = aes(x = displ, y = hwy, color = cyl))
+
+```
+
+#### In the scatterplot chart above, we can easily discover that the cars that have more cylinders tend to increasing engine displacement and to decreasing its highway miles per gallon.
+
+## Question 7
+```{r}
+library(ggplot2)
+#use ggplot to draw scatterplot
+ggplot(data = mpg) +
+geom_point(mapping = aes(x = displ, y = hwy, color = cyl)) +
+  facet_wrap(~drv)
+
+```
+
+#### In these scatterplot charts above, we can easily discover that the frontwheel drive cars are more likely to have less cylinders and to drive more miles in high-way, while the rearwheel drive cars tend to have more cylinders and to drive less miles in high-way. In addition, features of four-wheel drive cars are general when compared to frontwheel drive and rearwheel drive cars.

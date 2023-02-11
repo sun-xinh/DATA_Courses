@@ -1,0 +1,382 @@
+---
+title: "Practicum 3"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+###Group Member: Jiacheng Jiang, Muzhi Wu, Xinhao Sun
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+
+-   Load the [NYC Green Taxi Trip Records](https://s3.amazonaws.com/nyc-tlc/trip+data/green_tripdata_2020-02.csv) data directly from the URL into a data frame or tibble.
+
+```{r message=FALSE,warning=FALSE}
+# load packages
+library(tidyverse)
+library(knitr)
+library(mltools)
+library(caret)
+library(class)
+library(zoo)
+library(data.table)
+library(dlookr)
+library(ggplot2)
+library(scales)
+library(plyr)
+library(dplyr)
+library(tm)
+library(stringr)
+library(lubridate)
+library(viridis)
+library(geosphere)
+library(ggpmisc)
+library(Hmisc)
+library(sqldf)
+library(tidyr)
+library("tibble")
+library("XML")
+library("methods")
+library("httr")
+library("xml2")
+library("htmlwidgets")
+library("magrittr")
+library("installr")
+library("countrycode")
+library("abbreviate")
+library("ggpubr")
+library("rvest")
+library("rlist")
+library("rlang")
+library("stringi")
+library(openintro)
+library(psych)
+library(fastDummies)
+library(recipes)
+library(MASS)
+library(gmodels)
+```
+
+
+```{r,message=FALSE,warning=FALSE}
+# import data
+greenn <- read_csv("C:/Users/jiachen/Desktop/DA 5020/practicum/practicum3/2018_Green_Taxi_Trip_Data.csv")
+tripdata_df <- greenn
+gren <- greenn
+kable(head(tripdata_df))
+```
+
+-   **Data exploration**: explore the data to identify any patterns and analyze the relationships between the features and the target variable i.e. total amount. At a minimum, you should analyze:
+
+ 1) the distribution,
+
+ 2) the correlations 
+
+ 3) missing values
+
+ 4) outliers 
+
+provide supporting visualizations and explain all your steps.
+
+- inspect dimensions of `tripdata_df`
+
+```{r}
+dim(tripdata_df)
+```
+
+- inspect variables type
+
+```{r}
+glimpse(tripdata_df)
+```
+
+There are many types of variables, including date type, continuous type and so on.
+
+- inspect missing values
+
+```{r}
+DataExplorer::plot_missing(tripdata_df)
+```
+
+The all of the value of ehail_fee are missing value. we need to remove it. 
+
+Explore the data to determine if there are any inconsistent or invalid data.
+
+```{r}
+summary(tripdata_df)
+```
+
+
+next, we proceed correlations. 
+
+```{r,fig.align='center',fig.height=7,fig.width=9}
+tripdata_df %>% 
+  dplyr::select(! ends_with("ID")) %>% 
+  dplyr::select(! ends_with("type")) %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  DataExplorer::plot_correlation()
+```
+
+For table above, we can see `total_amount` and `improvement_surcharge` show relatively strong relationship.
+
+Due to `ehail_fee` value is missing, we have to `remove ehail`_fee to ensure correlations processing. 
+
+Then eliminate all variables related to *ID*, because these variables have low correlation coefficient which means little practical significance. 
+
+```{r}
+tripdata_df <- tripdata_df %>%
+  dplyr::select(! ends_with("ID")) %>% 
+  # dplyr::select(! ends_with("type")) %>% 
+  dplyr::select(where(is.numeric))
+```
+
+The distribution of missing values is counted, and the results are shown in the figure below.
+
+```{r,fig.align='center',fig.height=7,fig.width=10}
+DataExplorer::plot_missing(tripdata_df)
+```
+
+
+```{r,fig.align='center',fig.height=7,fig.width=10}
+tripdata_df %>%
+  dlookr::plot_box_numeric()
+```
+
+For distribution graph above, we find all of variables are skewed to right with few outlier. 
+
+For the graph below, the distribution of outliers is obviously concentrated in the range of more than 3 times of standard deviation plus mean.
+
+```{r,fig.align='center',fig.height=7,fig.width=10}
+avg_total_amount <- mean(tripdata_df$total_amount, na.rm = TRUE)
+sd_total_amount <- sd(tripdata_df$total_amount, na.rm = TRUE)
+tripdata_df %>%
+  mutate(group = case_when(
+    is.na(total_amount) ~ "normal",
+    total_amount > avg_total_amount + 3 * sd_total_amount ~ "outlier",
+    total_amount < avg_total_amount - 3 * sd_total_amount ~ "outlier",
+    TRUE ~ "normal"
+  )) %>%
+  ggplot(aes(group, total_amount, color = group)) +
+  geom_boxplot() +
+  geom_jitter(shape = 16, position = position_jitter(0.2)) +
+  facet_wrap(~group, scales = "free") +
+  scale_color_brewer(palette = "Dark2")
+```
+
+
+
+## Question 2
+
+- Prepare the data for the modeling phase and handle any issues that were identified during the exploratory data analysis. At a minimum, ensure that you:
+
+- Preprocess the data: handle missing data and outliers, perform any suitable data transformation steps, etc. Also, ensure that you filter the data. The goal is to predict the total amount, therefore you need to ensure that you extract the data that contains this information. Hint: read the data dictionary.
+
+- Normalize the data: perform either max-min normalization or z-score standardization on the continuous variables/features. 
+
+- Encode the data: determine if there are any categorical variables that need to be encoded and perform the encoding. 
+
+- Prepare the data for modeling: shuffle the data and split it into training and test sets. The percent split between the training and test set is your decision. However, clearly indicate the reason.
+
+
+First remove the sample with variable value *NA*.
+
+```{r,fig.align='center',fig.height=7,fig.width=10}
+tripdata_df <- tripdata_df %>%
+  na.omit()
+summary(is.na(tripdata_df))
+```
+
+
+```{r,fig.align='center',fig.height=7,fig.width=10}
+head(tripdata_df)
+```
+
+The following code is to convert some numerical variables into their corresponding variable meanings for subsequent analysis.
+
+```{r}
+tripdata_df <- tripdata_df %>%
+  mutate(payment_type = case_when(
+    payment_type == 1 ~ "Credit card",
+    payment_type == 2 ~ "Cash",
+    payment_type == 3 ~ "No charge",
+    payment_type == 4 ~ "Dispute",
+    payment_type == 5 ~ "Unknown",
+    TRUE ~ "Voided trip"
+  )) %>%
+  mutate(trip_type = case_when(
+    trip_type == 1 ~ "Street-hail",
+    trip_type == 2 ~ "Dispatch",
+    TRUE ~ "Street-hail"
+  ))
+```
+
+Remove outliers for variable *total_amount*.
+
+```{r}
+tripdata_df <- tripdata_df %>%
+  mutate(group = case_when(
+    is.na(total_amount) ~ "outlier",
+    total_amount > avg_total_amount + 3 * sd_total_amount ~ "outlier",
+    total_amount < avg_total_amount - 3 * sd_total_amount ~ "outlier",
+    TRUE ~ "normal"
+  )) %>%
+  dplyr::filter(group == "normal")
+```
+
+Define Min-Max normalization function.
+
+```{r}
+min_max_norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+Apply Min-Max normalization to target variables.
+
+```{r}
+tripdata_df <- tripdata_df %>%
+  mutate(across(.cols = where(is.numeric), .fns = min_max_norm))
+```
+
+The following codes shows how to perform one-hot encoding for the dataset *tripdata_df*.
+
+```{r}
+tripdata_df <- tripdata_df %>%
+  dplyr::select(-group) %>%
+  mutate(across(.cols = where(is.character), .fns = as.factor)) %>%
+  data.table::as.data.table() %>%
+  one_hot(dt = .) %>%
+  as_tibble() %>% 
+  dplyr::sample_n(50000)
+glimpse(tripdata_df)
+```
+
+Split dataset into training and test sets, 70% for training and 30% for test. Such data division makes the model training more sufficient.
+
+```{r}
+set.seed(1111)
+train.index <- createDataPartition(tripdata_df$total_amount, p = .7, list = FALSE)
+train <- tripdata_df[train.index, ]
+test <- tripdata_df[-train.index, ]
+```
+
+
+## Question 3
+
+- In this step you will develop the *k-nn* regression model. Create a function with the following name and arguments: **knn.predict(data_train, data_test, k)**; 
+- data_train represents the observations in the training set, 
+- data_test represents the observations from the test set, and 
+- k is the selected value of k (i.e. the number of neighbors). 
+
+Perform the following logic inside the function:
+
+Implement the k-nn algorithm and use it to predict the total amount for each observation in the test set i.e. data_test. 
+
+- Note: You are not required to implement the k-nn algorithm from scratch. Therefore, this step may only involve providing the training set, the test set, and the value of k to your chosen k-nn 
+library. 
+
+- Calculate the mean squared error (MSE) between the predictions from the k-nn model and the actual total amount in the test set. 
+
+- The knn-predict() function should return the MSE.
+
+```{r}
+knn.predict <- function(data_train, data_test, k) {
+  library(caret)
+  knn_model <- train(
+    total_amount ~ .,
+    data = data_train,
+    method = "knn",
+    tuneGrid = expand.grid(k = k)
+  )
+  pred <- predict(knn_model, newdata = data_test)
+  mse <- mltools::mse(preds = pred,actuals = pull(data_test,total_amount))
+  return(mse)
+}
+
+mse_totals <- knn.predict(data_train = train,data_test = test,k = 10)
+mse_totals
+```
+
+## Question 4
+
+- Determine the best value of k and visualize the MSE. This step requires selecting different values of k and evaluating which produced the lowest MSE. At a minimum, ensure that you perform the following: 
+
+- Provide at least 20 different values of k to the knn.predict() function (along with the training set and the test set). 
+
+Tip: use a loop! Use a loop to call knn.predict() 20 times and in each iteration of the loop, provide a different value of k to knn.predict(). Ensure that you save the MSE that’s returned. 
+
+- Create a line chart and plot each value of k on the x-axis and the corresponding MSE on the y-axis. Explain the chart and determine which value of k is more suitable and why. 
+
+- What are your thoughts on the model that you developed and the accuracy of its predictions? Would you advocate for its use to predict the total amount of future trips? Explain your answer.
+
+```{r}
+res <- c()
+for (i in 2:25) {
+  mse <- knn.predict(data_train = train,data_test = test,k = i)
+  res[i] <- mse
+  print(paste0("i = ",i," finished !"))
+}
+```
+
+
+```{r}
+mse_df <- data.frame(k = 2:25,mse = na.omit(res))
+ggplot(mse_df,aes(k,mse))+
+  geom_line()+
+  geom_point(data = mse_df %>% 
+               dplyr::filter(mse == min(mse)),aes(k,mse),color = "red")+
+  geom_text(data = mse_df %>% 
+               dplyr::filter(mse == min(mse)),aes(k,mse,label = k),color = "red")+
+  labs(title = "Error line chart with K")
+```
+
+By drawing the error line graph, it can be found that when k is selected as `r mse_df[which.min(mse_df$mse),][1,1]`, MSE is the smallest and the prediction accuracy of the model is the highest. Low root mean square deviation is good reason to advocate using model to predict future trips.
+
+## Question 5
+
+
+```{r}
+knn.predict <- function(data_train, data_test, k) {
+  library(caret)
+  knn_model <- train(
+    total_amount ~ .,
+    data = head(data_train,5000),
+    method = "knn",
+    tuneGrid = expand.grid(k = k)
+  )
+  pred <- predict(knn_model, newdata = data_test)
+  return(pred)
+}
+
+gren5 <- knn.predict(data_train = train,data_test = test,k = 5)
+gren5 <- data.frame(unlist(c(gren5)))
+gren5
+ 
+ 
+colnames(gren5) <- c("total")
+gren5 %>%
+plot_box_numeric()
+
+
+avg_q5 <- mean(gren5$total, na.rm = TRUE)
+sd_q5 <- sd(gren5$total, na.rm = TRUE)
+gren5 %>%
+  mutate(group = case_when(
+    is.na(total) ~ "normal",
+    total > avg_q5 + 3 * sd_q5 ~ "outlier",
+    total < avg_q5 - 3 * sd_q5 ~ "outlier",
+    TRUE ~ "normal"
+  )) %>%
+  ggplot(aes(group, total, color = group)) +
+  geom_boxplot() +
+  geom_jitter(shape = 16, position = position_jitter(0.2)) +
+  facet_wrap(~group, scales = "free") +scale_color_brewer(palette = "Dark2")
+```
+
+From question 4, we pick 5 as the k value. Then, we proceed with the prediction. we have two graphs. One shows the distribution by numerical variables. The other shows the outliers. For the distribution by numerical variables graph, we can find the shape of the distribution is skewed to right with few outliers. For the outlier graph,  the distribution of normal is obviously concentrated in the range of more than 3 times of standard deviation plus the mean. outliers are widespread in the graph.

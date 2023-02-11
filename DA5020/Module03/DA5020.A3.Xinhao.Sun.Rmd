@@ -1,0 +1,171 @@
+---
+title: "DA5020.A3.Xinhao.Sun"
+author: "Xinhao Sun"
+date: "9/21/2022"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+## Question 1
+
+#### I completed the data camp "Introduction to the Tidyverse and Reshaping Data with tidyr". 
+
+## Question 2
+
+```{r}
+library(tidyverse)
+tripdata_df = read.csv("2018_Green_Taxi_Trip_Data.csv")
+dim(tripdata_df)
+glimpse(tripdata_df)
+summary(tripdata_df)
+```
+
+## Question 3
+### (a)
+```{r}
+pa = tripdata_df %>%
+  select(passenger_count) %>%
+  # filter(VendorID != 1 &VendorID != 2)
+  filter(passenger_count<1)
+
+dis = tripdata_df %>%
+  select(trip_distance) %>%
+  filter(trip_distance<=0)
+
+#tripdata_df %>%
+#  filter(store_and_fwd_flag != "Y" & store_and_fwd_flag != "N")
+
+fare = tripdata_df %>%
+  select(fare_amount) %>%
+  filter(fare_amount < 0)
+
+"no passenger"
+glimpse(pa)
+"zero distance"
+glimpse(dis)
+"negative fare on meter"
+glimpse(fare)
+
+```
+
+```{r, results="hide"}
+# show the result above in one table
+tripdata_df %>%
+  select(passenger_count, trip_distance, fare_amount) %>%
+  filter(passenger_count<1 |
+           trip_distance<=0 |
+           fare_amount<0)
+```
+
+### (b)
+```{r}
+mod_vendorID = factor(tripdata_df$VendorID,levels=c(1,2),labels=c('Creative Mobile Technologies','VeriFone Inc.'))
+"VendorID"
+glimpse(mod_vendorID)
+
+mod_store_fwd_flag = factor(tripdata_df$store_and_fwd_flag,levels=c("Y","N"),labels=c('store and forward trip','not a store and forward trip'))
+"store_and_fwd_flag"
+glimpse(mod_store_fwd_flag)
+
+mod_trip_type = factor(tripdata_df$trip_type,levels=c(1,2),labels=c('Street-hail','Dispatch'))
+"trip_type"
+glimpse(mod_trip_type)
+
+```
+
+
+## Question 4
+```{r, warning=FALSE}
+library(tidyverse)
+trip_dis = tripdata_df %>%
+  select(trip_distance) %>%
+  group_by(trip_distance) %>%
+  summarize(n = n())
+
+ggplot(trip_dis, aes(trip_distance)) + 
+  geom_histogram(fill='#66CCFF')
+
+ggplot(trip_dis, aes(trip_distance)) + 
+  geom_histogram(fill='#66CCFF') +
+  scale_x_log10() + scale_y_log10()
+```
+
+#### we can easily see it is negative skewed data,after using a log scale, the bars varies dramatically.
+
+## Question 5
+```{r, results='hide'}
+
+# first method
+mean_tip = mean(tripdata_df$tip_amount)
+std_tip = sd(tripdata_df$tip_amount)
+newdate = tripdata_df %>%
+  select(tip_amount,trip_distance) %>%
+  filter(tip_amount > mean_tip + 3 * std_tip |
+       tip_amount < mean_tip - 3 * std_tip)
+
+```
+
+```{r }
+
+# using reusble function to get outiler should be more easiy
+
+outliers = function(df,a){
+  library(dplyr)
+  mean_a = mean(a)
+  std_a = sd(a)
+  newdata = df %>% filter(a > mean_a + 3 * std_a | a < mean_a - 3 * std_a)
+  return(newdata)
+}
+
+dis_out=outliers(tripdata_df, tripdata_df$trip_distance)
+tip_out=outliers(tripdata_df, tripdata_df$tip_amount)
+
+"there are around 2% outliers in trip_distance"
+20953/1048575
+glimpse(dis_out)
+
+14444/1048575
+"there are around 1% outliers in tip_amount"
+glimpse(tip_out)
+# newdata = setdiff(tripdata_df, tip_out)
+# why the result by using "setdiff" is different with the result below
+newdata = tripdata_df %>%
+  filter(tip_amount < mean(tip_amount) + 3 * sd(tip_amount) & 
+           tip_amount > mean(tip_amount) - 3 * sd(tip_amount))
+
+```
+#### there are around 2% outliers in trip_distance and there are around 1% outliers in tip_amount
+
+
+## Question 6
+```{r warning=FALSE}
+glimpse(factor(tripdata_df$payment_type))
+# payment_type have 5 factors instead of 6 which is shown on dictionary
+
+trip_type = newdata %>%
+  group_by(payment_type) %>%
+  summarise(trips = n()) %>%
+  select(trips) %>%
+  mutate(pay_type=c('Credit card','Cash', 'No charge', 'Dispute', 'Unknown'))
+ggplot(trip_type, aes(x=pay_type, y=trips, fill=pay_type)) + geom_col() +
+  scale_y_log10() +
+  labs(x = 'Pay Type', y = 'log of Number', title = 'Payment Type for NYC Taxi')
+```
+
+
+
+## Question 7
+
+#### As far as I am concerned, there are na.omit(), drop_na() and fill(). I recommend fill(), since the amount of missing values is so large that the analysis results could be influenced.
+
+#### An example examples on Taxi data is shown below, I prefer use drop_na() on trip_type due to only 3 NA
+```{r}
+nonna_type = tripdata_df %>%
+  select(trip_type) %>%
+  drop_na()
+dim(tripdata_df)
+dim(nonna_type)
+```
+
+

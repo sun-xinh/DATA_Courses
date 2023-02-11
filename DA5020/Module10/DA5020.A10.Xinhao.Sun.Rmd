@@ -1,0 +1,113 @@
+---
+title: "DA5020.A10.xinhao.sun"
+author: "Xinhao Sun"
+date: "11/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r, warning=FALSE,message=FALSE}
+rm(list=ls())
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(GGally)
+```
+
+## Question 1
+
+```{r, message=FALSE}
+if (! require(openintro)) {
+  install.packages("openintro")
+}
+
+data("ncbirths")
+str(ncbirths)
+```
+
+
+#### The confidence interval and the prediction interval both quantifies uncertainty in a predicted value. However, the confidence interval is a measure of the uncertainty in the estimated value of a *population parameter* (like mean of population), while the prediction interval is a measure of the uncertainty in the predicted value of a *individual observation*. 
+
+#### The multiple linear regression aims to explain the relationship between one response variable and multiple predictor variables. The reason why to use it is to make predictions about the response variable based on the values of the predictor variables. For example, we can predict the weight of newborn babies based on the age of the mother, the number of prenatal visits, and the marital status of the mother.
+
+## Question 2
+```{r, warning=FALSE,message=FALSE, fig.height = 18, fig.width = 20}
+ggpairs(ncbirths)
+
+# further inspection
+#ncbirths_cor <- ncbirths %>% 
+#  mutate(across(.cols = where(is.factor),.fns = as.numeric))
+#ggpairs(ncbirths_cor)
+
+```
+
+#### The “mature”, "premie", "marital", "owbirthweight", "gender", "habit" and “whitemom” fields are binary categorical and therefore only show values of 2 or 1.
+#### The distribution of “weight” and “visit” can be considered normal.
+#### The distribution of "fage", "mage", and “gained” are less normal and left skewed.
+#### Correlation between "mage" and "fage" is 0.78 as strongest co-linearity we detected, following by correlation between "weeks" and "weight"
+#### I anticipated every fields that may be useful for the model. 
+
+## Question 3
+
+```{r}
+births_lm <- lm(weight ~ .,data = ncbirths)
+summary(births_lm)
+
+```
+
+#### From the result shown above, R squared value is 0.605, which means the model is not really good and Adj. R suqred is 0.6. Standard error is 0.913, which is acceptable. F statistics show 12 freedom and value is 100. P value is less than the significance level 0.05, whih means this lm model is satisfied.
+
+## Question 4
+
+```{r, eval=FALSE}
+# get Error in step(model, direction = "both", p = 0.05) : number of rows in use has changed: remove missing values?
+
+step(object = births_lm)
+
+model_step <- step(births_lm, direction = "both", p = 0.05)
+```
+
+```{r}
+# I made a new model with na.omit instead
+
+# Remove rows with missing values
+ncbirths_c <- na.omit(ncbirths)
+
+model <- lm(weight ~., data = ncbirths_c)
+
+# Use stepwise elimination to eliminate coefficients with p-value > 0.05
+model_step <- step(model, direction = "both", p = 0.05)
+
+summary(model_step)
+```
+
+#### In stepwise elimination processes, the reason why the model eliminate variables is due to coefficients with p-value > 0.05.
+#### At the first step, the model eliminates *mage* with the AIC=-135.47.
+#### Second, *mature* is deleted with AIC=-137.46.
+#### Third, the model chose to eliminate *visits* with AIC=-139.45.
+#### Next, the model eliminates *premie* with the AIC=-141.35.
+#### Finally, the model eliminates *mage* with the AIC=-135.47.
+
+
+## Question 5
+
+```{r}
+newdata <- data.frame(fage = 40, mage = 32, mature = 'mature mom', weeks = 42, premie = 'full term', visits = 12, marital = 'married', gained = 22, lowbirthweight = 'not low', gender = 'female', habit = 'nonsmoker', whitemom = 'white')
+
+# confidence interval
+predicted_weight <- predict(model_step, newdata, interval = "confidence")
+
+predicted_weight
+# Prediction interval
+predict(model_step, newdata, interval = "prediction")
+
+```
+
+#### Based on "fage = 40, mage = 32, mature = 'mature mom’, weeks = 42, premie = 'full term’, visits = 12, marital = ‘married', gained=22, lowbirthweight = 'not low’, gender = ‘female', habit = ‘nonsmoker', whitemom = ‘white’", the predicted brith weight is 8.003541 lb. The 95% confidence interval is [7.839064, 8.168019]. The 95% prediction interval is [6.209023, 9.79806]. 
+
+

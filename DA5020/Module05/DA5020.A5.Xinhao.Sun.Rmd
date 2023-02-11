@@ -1,0 +1,119 @@
+---
+title: "DA.A5.xinhao"
+author: "Xinhao Sun"
+date: "9/23/2022"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+## Bonus
+#### I complete the two courses on DATACAMP
+
+## question 1
+```{r}
+# Error in (function (cond)  : 
+#  error in evaluating the argument 'doc' in selecting a method for function 'xmlToDataFrame': 1: Unknown IO # #error2: failed to load external entity "http://www.senate.gov/general/contact_information/senators_cfm.xml"
+
+# I encountered the error shown above when directly using xmlToDataFrame with url.
+# This is the resolution below. I am confused by the function of rawToChar and xmlParse
+
+library(tidyverse)
+library(XML)
+library(httr)
+url = GET('https://data.ny.gov/api/views/ngbt-9rwf/rows.xml')
+xml_1 = xmlParse(rawToChar(url$content))
+contact_data = xmlToDataFrame(xml_1) %>% as_tibble()
+glimpse(contact_data)
+
+#read_csv("https://data.ny.gov/api/views/ngbt-9rwf/rows.xml")
+
+```
+```{r, results='hide'}
+# another resolution
+url = "https://www.senate.gov/general/contact_information/senators_cfm.xml"
+xml_raw = xmlParse(GET(url))
+xdf = xmlToDataFrame(xml_raw) %>% as_tibble()
+
+```
+
+
+## question 2
+```{r}
+update_name_f = function(x) str_extract(x,'\\w+')
+contact_data %>%
+  select(first_name,last_name,party) %>%
+  mutate(update_name =update_name_f(first_name) )
+
+```
+
+## question 3
+```{r}
+upd_data = contact_data
+upd_data[,3] = sapply(upd_data[,3], update_name_f)
+senatorsByState = function(x) {
+  if(!(x %in% datasets::state.abb)) stop("Should be two letter abbreviation for a US State")
+  
+  upd_data %>%
+  filter( state == x) %>% 
+        mutate( party.full = str_replace_all( party, c('D' = "Democratic Party", "R" = "Republic Party", "I" = "Independent Party"))) %>% 
+        unite( fullname, 3:2, sep = ' ') %>% 
+        select( fullname, party.full, state) %>% 
+        unite( nnp, 1:2, sep = ', ') %>% 
+        pull( nnp) %>% 
+        paste( collapse = ' and ') -> output
+  print(paste("The senators for",x,"are:",output ))
+}
+
+senatorsByState("MA")
+
+```
+
+# question 4
+```{r, warning=FALSE}
+rate_data <- read_csv("Ratio Of Female To Male Youth Unemployment Rate .csv", 
+                      skip = 3,show_col_types = FALSE)
+
+country_name = rate_data %>% 
+  select( `Country Code`, `Country Name`) %>% 
+  distinct()
+
+indicator_data = rate_data %>% 
+  select(-c('Country Name', 'Indicator Name', 'Indicator Code')) %>% 
+  pivot_longer(!"Country Code", names_to = 'year', values_to = 'value' ) %>% 
+  drop_na()
+
+"structure of country_name"
+str(country_name)
+"structure of indicator_data"
+str(indicator_data)
+```
+
+
+
+
+# question 5
+```{r}
+library(RColorBrewer)
+selec_countries = c("United States","Canada","Cuba", "Guatemala", "Mexico",
+                 "China", "Japan", "India", "Thailand", "Singapore",
+                 "Yemen, Rep.", "Turkey", "Egypt, Arab Rep.", "Iran, Islamic Rep.", "Iraq")
+selec_continents = c("North America", "Asia","Middle East")
+country_lists = data.frame(cbind(matrix(selec_countries,nrow = 3,byrow = TRUE),
+                           selec_continents)) %>%
+  pivot_longer(!selec_continents, names_to = NULL, values_to = "Country Name")
+
+
+g_data = indicator_data %>%
+  left_join(country_name, by = "Country Code") %>%
+  filter(year > 1999,`Country Name` %in% selec_countries) %>%
+  left_join(country_lists,by="Country Name") 
+
+g_data %>%
+  group_by(selec_continents) %>%
+  ggplot(aes(x = year, y = value, color = `Country Name`, group = `Country Name`)) +
+  scale_color_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(15)) +
+  geom_line() + facet_wrap(~selec_continents, dir = "v", scales="free") +
+  theme_linedraw()
+
+```

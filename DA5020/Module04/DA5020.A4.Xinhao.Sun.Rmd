@@ -1,0 +1,128 @@
+---
+title: "DA5020.A4.Xinhao"
+author: "Xinhao Sun"
+date: "9/23/2022"
+output: 
+  html_document:
+   code_folding: "hide"
+---
+
+## Bonus
+### 1
+#### I complete the two courses on DATACAMP
+
+### 2
+```{r, warning=FALSE}
+# clean the env
+rm(list=ls())
+library(knitr)
+library(tidyverse)
+library(lubridate)
+tripdata_df = read.csv("2018_Green_Taxi_Trip_Data.csv")
+tripdata_df %>%
+  mutate(pickup_day = as.Date(
+    tripdata_df$lpep_pickup_datetime, format = "%m/%d/%Y %H:%M")) %>%
+  group_by(pickup_day) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n)) %>%
+  head()
+
+```
+
+#### It is easily to discover that the 2018 Feb 2nd is the date with the most trips. In addition, the dataset include some unexpected datas like datas on 2017, 2010 and 2009 year.
+
+
+## question 1
+```{r}
+mod_vendorID = factor(tripdata_df$VendorID,levels=c(1,2),labels=c('Creative Mobile Technologies','VeriFone Inc.'))
+"VendorID"
+glimpse(mod_vendorID)
+
+mod_store_fwd_flag = factor(tripdata_df$store_and_fwd_flag,levels=c("Y","N"),labels=c('store and forward trip','not a store and forward trip'))
+"store_and_fwd_flag"
+glimpse(mod_store_fwd_flag)
+
+mod_trip_type = factor(tripdata_df$trip_type,levels=c(1,2),labels=c('Street-hail','Dispatch'))
+"trip_type"
+glimpse(mod_trip_type)
+```
+
+## question 2
+```{r}
+library(ggplot2)
+ggplot()+geom_bar(aes(mod_trip_type), fill='#66CCFF')
+
+trip_type = tripdata_df %>%
+  group_by(payment_type) %>%
+  summarise(trips = n()) %>%
+  select(trips) %>%
+  mutate(pay_type=c('Credit card','Cash', 'No charge', 'Dispute', 'Unknown'))
+g = ggplot(trip_type, aes(x=pay_type, y=trips, fill=pay_type)) + geom_col() +
+  labs(x = 'Pay Type', y = 'log of Number', title = 'Payment Type for NYC Taxi') +
+  theme_classic()
+g
+g + scale_y_log10()
+  
+```
+
+#### We can easily find in the first bar chart that the **street-hail** is the most popular type of trip. In the second chart, we can easily find in the second chart that the **credit card** is the most popular type of payment. In addition, I discovered there are only 5 type of payment. According to *data_dictionary_trip_records_green*, I made the chart without **Voided trip**. On top of that, I find cash and credit card took lion shares, which made the rest of types are blurry. I use  **scale_y_log10()** to adjust the second chart into third one.
+
+## question 3
+```{r}
+tripdata_df %>%
+  mutate(mod_pickup_datetime = as.Date(
+    tripdata_df$lpep_pickup_datetime, format = "%m/%d/%Y %H:%M")) %>%
+  filter(between(mod_pickup_datetime, as.Date('2018-02-01'), 
+                 as.Date('2018-02-28'))) -> feb_pickup
+
+date_g = ggplot(feb_pickup, aes(mod_pickup_datetime)) + geom_bar(fill = "#66CCFF") + 
+  theme_bw()
+date_g
+date_g + scale_y_log10()
+
+
+```
+
+#### I fail to find a patterns in date of pickups. In the second chart, we can see that **the first 9 days** took lion shares, which made the rest are blurry. It is still fail to find pattern by using *scale_y_log10()* to find pattern.
+
+
+## question 4
+```{r}
+library(lubridate)
+HourOfDay = function(datetime){
+  hour(as.POSIXlt(datetime))
+}
+
+HourOfDay("2020-02-01 11:10:25")
+
+```
+
+## question 5
+```{r}
+library(knitr)
+hour_data = tripdata_df %>%
+  mutate(lpep_pickup_hour = HourOfDay(strptime(lpep_pickup_datetime, 
+                                               format="%m/%d/%Y %H:%M")))
+
+hour_data %>%
+  select(lpep_pickup_datetime, lpep_pickup_hour) %>%
+  tail(300) %>%
+  knitr::kable(format = "simple")
+
+```
+
+#### This data is too large to display. In this case, I only the last 300 of it to display.
+
+## question 6
+
+```{r}
+# levels(factor(hour_data$lpep_pickup_hour))
+hour_data %>%
+  group_by(lpep_pickup_hour) %>%
+  summarise(med = median(trip_distance)) %>%
+  ggplot(aes(lpep_pickup_hour,med)) + geom_line() + 
+  expand_limits(y = 0) +
+  theme_classic()
+```
+
+#### In the term of the median travel distance, we can easily find **5am** peaked, followed by 6am. In the rest of pickup hours, the median travel distance varied slightly.

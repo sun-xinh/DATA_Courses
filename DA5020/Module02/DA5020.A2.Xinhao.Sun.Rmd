@@ -1,0 +1,65 @@
+---
+title: "DA5020.A2.Xinhao.Sun.Rmd"
+author: "Xinhao Sun"
+date: "9/17/2022"
+output: 
+  html_document:
+   code_folding: "hide"
+---
+
+## Question 1
+```{r}
+library(ggplot2)
+library(dplyr)
+str(msleep)
+mvore = msleep %>%
+  group_by(vore) %>%
+  summarize(freq = n()/83)
+
+
+g <- ggplot(mvore, aes(x = vore, y = freq))
+g + geom_bar(stat = 'identity', fill='#66CCFF') 
+```
+#### In the mslepp, herbivore is the most frequent, following by omni, and "insecti" is the least frequent.
+
+## Question 3
+```{r}
+msleep %>%
+  select(vore, sleep_total) %>%
+  filter(vore == 'omni') %>%
+  group_by(vore) %>%
+  summarize(mean(sleep_total))
+```
+
+
+## Question 4
+```{r}
+ggplot(data = msleep) +
+geom_point(mapping = aes(x = bodywt, y = brainwt)) +
+  scale_x_log10() + scale_y_log10()
+```
+
+#### As bodyweight is increasing, brainwight is increasing.
+
+## Question 5
+```{r}
+library(tidyr)
+corr <- msleep %>%
+  select(bodywt, brainwt) %>%
+  drop_na() 
+cor(corr)
+
+```
+
+#### the correlation between bodywt and brainwt is 0.9337. As a result, boywt and brainwt is directly proportion. It supports my original assumptions from question 4
+
+## Question 6
+```{r}
+na_sle = select(msleep, name, sleep_total) 
+mean_sleep = mean(msleep$sleep_total) 
+std_sleep = sd(msleep$sleep_total)
+filter(na_sle, sleep_total< mean_sleep-1.5*std_sleep
+       | sleep_total > mean_sleep + 1.5*std_sleep)
+```
+
+

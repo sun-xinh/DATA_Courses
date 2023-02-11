@@ -1,0 +1,434 @@
+
+## Practicum1
+
+### Group Member: Jiacheng Jiang, Muzhi Wu, Xinhao Sun
+
+### Part1
+Create a dataframe with 4 variables. The 4 variables should be doctor_type, doctor_lastname, location, AVG_Rating. 
+```{r}
+rm(list = ls())
+```
+
+
+```{r}
+doctor_type <- c('PCP', 'Psychiatrist', 'Surgeon', 'Anesthesia')
+doctor_lastname <- c('Smith', 'Dame', 'Jones', 'Zayas')
+location <- c('MA', 'ME', 'NH', 'VT')
+AVG_Rating <- c(7,9,8,9)
+
+P1_df <- data.frame(doctor_type, doctor_lastname, location, AVG_Rating)
+
+P1_df
+```
+
+
+### Question 2
+Select row 1 in column 2, what was selected?
+```{r}
+P1_df[1, 2]
+```
+Select rows 2 through 4, what was selected?
+```{r}
+P1_df[2:4,]
+```
+Select the last column, what was selected?
+```{r}
+P1_df[,ncol(P1_df)]
+```
+
+### Question 3
+Using the dataset Mtcars create a scatterplot showing the relations between any two variables of your choosing. Explain why you picked those variables. Each point should also be based on a color scheme of your choosing.
+```{r}
+library(tidyverse)
+```
+
+```{r}
+ggplot(mtcars, aes(x=wt, y=mpg)) +
+  geom_point(aes(colour = factor(cyl))) +
+  geom_smooth() +
+  theme_bw()
+```
+We choose mpg and wt because we think there is a certain relationship between the two. The larger the wt, the smaller the mpg should be. According to the above figure, it is true that the larger the wt, the smaller the mpg. The heavier the weight, the more energy is required to move the car. The larger the Number of cylinders, the smaller the mpg. The more cylinders, the more fuel.
+
+### Question 4
+Using the dataset Mtcars perform a summary statistic on the dataset and calculate the pearson coefficient of the correlation R picking two variables of choice. Explain why you picked those variables and explain the purpose of a pearson coefficient.
+```{r}
+summary(mtcars)
+
+cor(mtcars$mpg, mtcars$wt, method = "pearson")
+```
+I think the two variables are negatively correlated, so the correlation coefficient should be negative. It is indeed a negative number. This coefficient means that if wt changes by one unit, mpg will decrease by 0.8676594. 
+
+
+### Part2
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE,warning=FALSE}
+if (!require(tidyverse)) {
+  install.packages(tidyverse)
+}
+if (!require(XML)) {
+  install.packages(XML)
+}
+if (!require(xml2)) {
+  install.packages(xml2)
+}
+if (!require(stringr)) {
+  install.packages(stringr)
+}
+if (!require(httr)) {
+  install.packages(httr)
+}
+
+```
+
+```{r}
+# load the packages
+library(tidyverse)
+library(XML)
+library(xml2)
+library(stringr)
+library(httr)
+library(skimr)
+```
+
+### Question1
+```{r}
+# load the data
+url = GET('https://data.ny.gov/api/views/ngbt-9rwf/rows.xml')
+xml_raw = xmlParse(url)
+
+# use dim to inspect the dimensions of the data
+df = xmlToDataFrame(xml_raw) 
+```
+
+```{r}
+df[1,1:6]
+```
+It was found that the data that should have been separated were connected together
+
+### Question2
+Evaluate the dataset to determine what data preparation steps are needed and perform them. At a minimum, ensure that you discuss the distribution of the data, outliers and prepare any helpful summary statistics to support your analysis.
+
+Since all variable values in the original data are linked together, we need to separate them. For different variables, we use different methods to extract their corresponding values:
+
+- year: the first four digits of the string.
+
+- county_of_program_location: extract according to the information provided by the field table file.
+
+- program_category:
+   Crisis
+   Inpatient
+   Opioid Treatment Program
+   Residential
+   Outpatient
+   Specialized
+   
+Detect whether any of the six values appears in the string, and extract it according to the occurrence.
+
+- service_type: other strings are extracted first, and the last part not extracted is the value of this part.
+
+- age_group:
+  Under 18
+  18 through 24
+  25 through 34
+  35 through 44
+  45 through 54
+  55 and Older.
+
+Detect whether any of the six values appears in the string, and extract it according to the occurrence.
+
+- primary_substance_group:
+  Heroin           
+  Alcohol
+  All Others   
+  Other Opioids         
+  Cocaine incl Crack   
+  Marijuana incl Hashish
+  None
+  
+Detect whether any of the six values appears in the string, and extract it according to the occurrence
+
+- admissions:extract the number that appears at the end of the string
+
+```{r}
+df <- df %>%
+  t() %>%
+  as_tibble() %>%
+  mutate(id = 1:n()) %>%
+  group_by(id) %>%
+  mutate(A = str_sub(V1, 1, 4)) %>%
+  mutate(C = case_when(
+    str_detect(V1, "Crisis") ~ "Crisis",
+    str_detect(V1, "Inpatient") ~ "Inpatient",
+    str_detect(V1, "Opioid Treatment Program") ~ "Opioid Treatment Program",
+    str_detect(V1, "Residential") ~ "Residential",
+    str_detect(V1, "Outpatient") ~ "Outpatient",
+    str_detect(V1, "Specialized") ~ "Specialized",
+    TRUE ~ "wrong"
+  )) %>% 
+  mutate(B = str_sub(V1, start = 5, end = str_locate(V1, C)[1] - 1)) %>%
+  mutate(B = str_remove(B, "SpecializedSpecialized ")) %>%
+  mutate(E = case_when(
+    str_detect(V1, "Under 18") ~ "Under 18",
+    str_detect(V1, "18 through 24") ~ "18 through 24",
+    str_detect(V1, "25 through 34") ~ "25 through 34",
+    str_detect(V1, "35 through 44") ~ "35 through 44",
+    str_detect(V1, "45 through 54") ~ "45 through 54",
+    str_detect(V1, "55 and Older") ~ "55 and Older",
+    TRUE ~ "wrong"
+  )) %>%
+  mutate(FH = case_when(
+    str_detect(V1, "Under 18") ~ str_split(string = V1, "Under 18", simplify = TRUE)[2],
+    str_detect(V1, "18 through 24") ~ str_split(string = V1, "18 through 24", simplify = TRUE)[2],
+    str_detect(V1, "25 through 34") ~ str_split(string = V1, "25 through 34", simplify = TRUE)[2],
+    str_detect(V1, "35 through 44") ~ str_split(string = V1, "35 through 44", simplify = TRUE)[2],
+    str_detect(V1, "45 through 54") ~ str_split(string = V1, "45 through 54", simplify = TRUE)[2],
+    str_detect(V1, "55 and Older") ~ str_split(string = V1, "55 and Older", simplify = TRUE)[2],
+    TRUE ~ "wrong"
+  )) %>%
+  mutate(G = str_extract(FH, "\\d+")) %>%
+  mutate(FH = str_remove(FH, G)) %>%
+  ungroup() %>% 
+  group_by(id) %>%
+  mutate(D = str_match(string = V1, pattern = paste0(C, "(.*)", E))[2]) %>%
+  mutate(D = case_when(
+    D == " - Mobile" ~ "Specialized OP - Mobile",
+    D == " - TBI" ~ "Specialized OP - TBI",
+    TRUE ~ D
+  )) %>%
+  ungroup() %>%
+  dplyr::select(-V1, -id) %>%
+  dplyr::relocate(A, B, C, D, E, FH, G) %>%
+  mutate(across(.cols = G, .fns = as.numeric)) %>%
+  setNames(c("year", "county_of_program_location", "program_category", "service_type", "age_group", "primary_substance_group", "admissions")) %>% 
+  mutate(across(.cols = c(year,admissions),.fns = as.numeric))
+head(df)
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+library(skimr)
+skimr::skim(df)
+```
+Year and number of people are numerical variables, and others are classified variables, which means that they can be coded.
+
+### question3
+Structure the data relationally, at a minimum, you should have four tibbles or data frames as follows:
+```{r}
+# create the data frame county.
+county <- data.frame(
+  stringsAsFactors = FALSE,
+  county_name = c(
+    "ALbany", "CAttaraugus",
+    "CheNango", "DElaware", "FRanklin", "HAmilton", "LEwis",
+    "MontGomery", "ONeida", "OrLeans", "Queens", "Saint Lawrence",
+    "SchuYler", "SulliVan", "WaRren", "WYoming", "AlleGany",
+    "CaYuga", "CLinton", "DUtchess", "FUlton", "HErkimer",
+    "LIvingston", "NAssau", "OnonDaga", "OSwego", "REnsselaer",
+    "SAratoga", "SEneca", "TIoga", "WaShington", "YAtes",
+    "BrooMe", "CheMung", "CoRtland", "ESsex", "GReene", "Kings",
+    "MOnroe", "NIagara", "ORange", "PUtnam", "ROckland",
+    "SchoHarie", "SUffolk", "ULster", "WEstchester", "Bronx",
+    "CHautauqua", "COlumbia", "ERie", "GEnesee", "JEfferson",
+    "MAdison", "New York", "OnTario", "OtseGo",
+    "Richmond", "SChenectady", "STeuben", "TOmpkins", "WAyne"
+  ),
+  county_code = c(
+    "AL", "CA", "CN", "DE", "FR",
+    "HA", "LE", "MG", "ON", "OL", "NY", "SL", "SY", "SV", "WR",
+    "WY", "AG", "CY", "CL", "DU", "FU", "HE", "LI", "NA",
+    "OD", "OS", "RE", "SA", "SE", "TI", "WS", "YA", "BM", "CM",
+    "CR", "ES", "GR", "NY", "MO", "NI", "OR", "PU", "RO",
+    "SH", "SU", "UL", "WE", "NY", "CH", "CO", "ER", "GE", "JE",
+    "MA", "NY", "OT", "OG", "NY", "SC", "ST", "TO", "WA"
+  )
+) %>%
+  dplyr::distinct(county_name, .keep_all = TRUE) %>% 
+  dplyr::filter(county_name != "HAmilton") %>% 
+  mutate(across(.cols = county_name,.fns = tolower))
+head(county)
+```
+The data frame county has two columns county_name and county_code.Respectively represent the name and abbreviation of the county.
+```{r}
+### create the data frame program_category.
+program_category <- df %>%
+  dplyr::select(program_category) %>%
+  distinct(program_category, .keep_all = TRUE) %>%
+  mutate(program_code = toupper(str_sub(program_category, 1, 2))) %>%
+  relocate(program_code, program_category)
+head(program_category)
+```
+The data frame program_category has two columns program_code and program_category.
+
+```{r}
+### create the data frame primary_substance_group
+primary_substance_group <- df %>%
+  dplyr::select(primary_substance_group) %>%
+  distinct(primary_substance_group, .keep_all = TRUE) %>%
+  mutate(substance_code = case_when(
+    primary_substance_group == "All Others" ~ "All",
+    TRUE ~ toupper(str_sub(primary_substance_group, 1, 1))
+  )) %>%
+  relocate(substance_code, primary_substance_group)
+head(primary_substance_group)
+```
+The data frame primary_substance_group has two columns substance_code and primary_substance_group.
+
+In order to make the data become the format in the example, it must be connected and replaced with the previous data.
+```{r}
+admissions_data <- df %>% 
+  left_join(program_category) %>% 
+  dplyr::select(-program_category) %>% 
+  rename(program_category = program_code) %>% 
+  left_join(primary_substance_group) %>% 
+  dplyr::select(-primary_substance_group) %>% 
+  rename(primary_substance_group = substance_code) %>% 
+  mutate(across(.cols = county_of_program_location,.fns = tolower)) %>% 
+  left_join(county,by = c("county_of_program_location" = "county_name")) %>% 
+  dplyr::select(-county_of_program_location) %>% 
+  rename(county_of_program_location = county_code) %>% 
+  relocate(colnames(df))
+```
+```{r}
+head(admissions_data)
+```
+Now This is data very similar to the case data.
+
+### Question4
+Create a function called annualAdmissions() that derives the total number of reported admissions that transpired each year, for the entire state of NY and displays the results using a line chart. Annotate the chart to show the year with the highest number of admissions. Note: the year should be on the x-axis and the number of admissions on the y-axis. Explain the chart.
+
+First, write a function to filter out the samples in New York, and then calculate the percentage by grouping according to the year.
+```{r}
+annualAdmissions <- function(){
+  admissions_data %>% 
+    dplyr::filter(county_of_program_location == "NY") %>% 
+    group_by(year) %>% 
+    summarise(admissions = sum(admissions)) %>% 
+    mutate(across(.cols = year,.fns = as.numeric)) 
+}
+head(annualAdmissions())
+```
+
+Next, draw a line diagram for the filtered data and mark the maximum value.
+```{r}
+# Import font.
+library(extrafont)
+library(showtext)
+showtext_auto(enable = TRUE)
+# 无法找到罗马字体
+# font_add("Times", "./font/Times New Roman.ttf")
+```
+
+```{r}
+ggplot()+
+  geom_point(data = annualAdmissions(),aes(year,admissions))+
+  geom_line(data = annualAdmissions(),aes(year,admissions))+
+  geom_text(data = annualAdmissions(),aes(year,admissions,label = admissions),
+            family = "sans",size = 5,position = position_dodge(0.8))+
+  geom_point(data = dplyr::slice_max(annualAdmissions(),admissions),
+             aes(year,admissions),color = "red")+
+  geom_text(data = dplyr::slice_max(annualAdmissions(),admissions),aes(year,admissions,label = admissions),
+            family = "sans",size = 5,color = "red",position = position_dodge(0.8))+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_continuous(n.breaks = 12)+
+  theme_light()+
+  theme(plot.title = element_text(size = 16,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.x = element_text(size = 12,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.y = element_text(size = 12,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.title.x = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        axis.title.y = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        strip.text = element_text(size = 12,hjust = 0.5,vjust = 0.5,family = "sans")) + 
+  labs(title = "the total number of reported transpired admissions in NY",
+       x = "Year",
+       y = "the number of admissions")
+```
+The line chart shows that the number of infected people was the highest in 2009, reaching 141245, and then decreased year by year.
+
+### question5
+Analyze the percentage of admissions for each county and visualize the results for the top 10 counties using a bar chart. Explain the results. Note: ensure that you join any related dataframes/tibbles.
+
+The data are grouped by `county` and the following results are obtained.
+```{r}
+df %>% 
+  group_by(county_of_program_location) %>% 
+  summarise(admissions = sum(admissions)) %>%
+  ungroup() %>% 
+  mutate(admissions_percent = admissions/sum(admissions))
+```
+
+```{r}
+df %>% 
+  group_by(county_of_program_location) %>% 
+  summarise(admissions = sum(admissions)) %>%
+  ungroup() %>% 
+  mutate(admissions_percent = admissions/sum(admissions)) %>% 
+  arrange(desc(admissions)) %>% 
+  head(10) %>% 
+  mutate(county_of_program_location = fct_reorder(county_of_program_location, admissions_percent,.desc = TRUE)) %>% 
+  ggplot()+
+  geom_col(aes(county_of_program_location,admissions_percent))+
+  geom_text(aes(county_of_program_location,admissions_percent,label = paste0(round(admissions_percent,3)*100,"%")))+
+  scale_y_continuous(labels = scales::percent)+
+  theme_light()+
+  theme(plot.title = element_text(size = 16,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.x = element_text(size = 12,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.y = element_text(size = 12,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.title.x = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        axis.title.y = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        strip.text = element_text(size = 12,hjust = 0.5,vjust = 0.5,family = "sans")) + 
+  labs(title = "the percentage of admissions for the top 10 counties",
+       x = "county",
+       y = "admissions percentage")
+```
+The results showed that New York had the highest proportion, reaching 12.7%, and the second County reached 9.4%, indicating that there were more people infected in New York And the top ten counties account for more than 60%, indicating that the phenomenon of sample agglomeration is obvious.
+
+
+### Q6
+
+Filter the data, using a regular expression, and extract all admissions to the various “Rehab” facilities; i.e. your regex should match all facilities that include the word rehab, rehabilitation, etc. Using the filtered data, identify which substance is the most prominent among each age group. Visualize and explain the results.
+
+I use the string detection function to check whether "rehab" appears in the string, filter and summarize, and then draw the following results.
+
+```{r message=FALSE,fig.height=8,fig.width=10}
+admissions_data %>% 
+  dplyr::filter(str_detect(service_type,"Rehab")) %>% 
+  group_by(age_group,primary_substance_group) %>% 
+  summarise(admissions = sum(admissions)) %>% 
+  left_join(primary_substance_group %>% 
+              rename(primary_substance_group_new = primary_substance_group),by = c("primary_substance_group" = "substance_code")) %>% 
+  mutate(primary_substance_group_new = fct_reorder(primary_substance_group_new, admissions,.desc = TRUE)) %>% 
+  ggplot()+
+  geom_col(aes(primary_substance_group_new,admissions,fill = primary_substance_group_new),position = "dodge2")+
+  geom_text(aes(primary_substance_group_new,admissions,label = admissions),size = 5,family = "sans")+
+  facet_wrap(~ age_group)+
+  scale_y_continuous(labels = scales::comma)+
+  guides(fill = guide_legend(nrow = 2))+
+  theme_light()+
+  theme(plot.title = element_text(size = 16,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.x = element_text(size = 12,angle = 30,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.text.y = element_text(size = 12,hjust = 0.5,vjust = 0.5,face = "bold",family = "sans"),
+        axis.title.x = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        axis.title.y = element_text(size = 14,hjust = 0.5,vjust = 0.5,family = "sans"),
+        strip.text = element_text(size = 12,hjust = 0.5,vjust = 0.5,family = "sans"),
+        legend.position = "bottom",
+        legend.title = element_text(size = 12,hjust = 0.5,vjust = 0.5,family = "sans"),
+        legend.text = element_text(size = 12,hjust = 0.5,vjust = 0.5,family = "sans")) + 
+  labs(title = "the percentage of admissions for the top 10 counties",
+       fill = "primary substance group",
+       x = "primary substance group",
+       y = "the number of admissions")
+```
+
+The bar chart shows that `alcohol` is the number one addictive substance, followed by `heroin`, and the proportion of these two categories has an absolute advantage, which shows that the above two types of problems are more significant in different age groups. In the group under the age of 18, `marijuana incl hashish` is the number one addictive substance, indicating that the 'marijuana incl hashish' of minors is more serious.
+
+
+
+
+

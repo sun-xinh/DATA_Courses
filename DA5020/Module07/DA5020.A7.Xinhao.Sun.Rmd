@@ -1,0 +1,126 @@
+---
+title: "DA5020.A7.xinhao"
+author: "Xinhao Sun"
+date: "10/30/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+initial
+```{r, message=FALSE}
+rm(list=ls())
+library(httr)
+library(rvest)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+## Bonus
+### I completed the DATACAMP
+
+## question 1
+```{r}
+#loading the table from the website
+url = "https://en.m.wikipedia.org/wiki/List_of_countries_by_percentage_of_population_living_in_poverty"
+html_raw_data = read_html(url)
+table1 = html_raw_data %>% 
+    html_nodes(xpath = '//table//th[@data-sort-type="text"]/../..') %>% 
+    html_table()
+data1 = as_tibble(table1[[1]])
+
+# remove the %, and make the target column into num format in order to calculate
+clean_data <- data1 %>% 
+  rename_with(~ gsub("\\[\\d+\\]", "", .x)) %>%
+  mutate(`< $1.90` = str_remove_all(`< $1.90`, "%")) %>% 
+  mutate(`< $3.20` = str_remove_all(`< $3.20`, "%")) %>% 
+  mutate(`< $5.50` = str_remove_all(`< $5.50`, "%")) %>%
+  type_convert()
+
+str(clean_data)
+```
+
+## question 2
+```{r}
+
+clean_data %>%
+  group_by(Continent) %>%
+  summarise(mean = mean(`< $5.50`), sd = sd(`< $5.50`)) %>%
+  arrange(mean) -> g
+g
+g %>% ggplot(aes(reorder(Continent, -mean), y = mean)) + geom_col(fill = '#AFEEEE') +
+  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width= 0.2) + 
+  theme_bw()
+  
+```
+
+#### From the table, the "Asia, Europe" means one country located in both continents. The most **wealth continent** is **Europe**, which also face lowest wealth gap, following by *South America*, *Nouth America*., and the **poorest continent** is **Africa**. In terms of deviation, **Asia** is the **most unbalanced** continent, following by *Oceania*.
+
+## question 3
+```{r}
+clean_data %>% 
+  arrange(desc(`< $5.50`)) %>% 
+  head(10) %>%
+  ggplot(aes(x = reorder(Country, `< $5.50`), y = `< $5.50`, fill = Continent)) +
+        geom_bar(stat = 'identity') +
+  labs( y = "Percentage of People living less than $5.50 a day",
+        x = "Country",
+        title = "the 10 highest percentage of the population",
+        subtitle = "---income of less than $5.50 per day") +
+  coord_flip() +
+  geom_text(aes(label = `< $5.50`)) +
+  theme_bw()
+
+```
+
+#### In this graph, we can find 9 of 10 top countries in Africa, and one located in Asia.
+
+## question 4
+```{r}
+clean_data %>% 
+  arrange((`< $5.50`)) %>% 
+  head(5) %>% print() %>%
+  ggplot(aes(x = reorder(Country, `< $5.50`), y = `< $5.50`, fill = Continent)) +
+  geom_bar(stat = 'identity') +
+  labs(y = "Percentage of People living less than $5.50 a day",
+       x = "Country",
+       title = "the 5 lowest percentage of the population",
+       subtitle = "---income of less than $5.50 per day") +
+  coord_flip() +
+  geom_text(aes(label = `< $5.50`)) +
+  theme_bw()
+
+clean_data %>% 
+  arrange((`< $3.20`)) %>% 
+  head(5) %>% 
+  kable() %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1, bold = T, color = "white", background = "#D7261E")
+
+clean_data %>% 
+  arrange((`< $3.20`)) %>% 
+  head(5) %>%
+  kable() %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1, bold = T, color = "white", background = "#D7261E")
+```
+
+#### 3 of 5 countries with the lowest percentage of the population having an income of less than $5.50 per day come from Europe and the two other from Asia. Compared with the < * $1.90 * and * < $3.20 * groups, the result is same but the top countries varing.
+
+## question 5
+```{r}
+clean_data %>% 
+  filter( Continent %in% c("South America", "North America")) %>% 
+  pivot_longer( c(`< $1.90`,`< $3.20`,`< $5.50`), names_to = "life_cost", values_to = "percentage") -> gd
+ggplot(gd) +
+  geom_boxplot(aes( x = Continent, y = percentage, fill = life_cost)) +
+  facet_wrap(~life_cost)
+```
+```
+In terms of '< $1.90', the mean and deviation in percentage of the South America is slightly higher than North America. But the outliers on North America is more than that on South America.
+In terms of '< $3.20', the mean in percentage of the South America seems to meet same situation with the North America. But the outliers on North America is more than that on South America. The deviation of North America is higher that its counterpart.
+In terms of '< $5.50', the mean in percentage of the South America is slightly higher than North America. there is no outlier both on North and South America. The deviation of North America is higher that its counterpart.
+```

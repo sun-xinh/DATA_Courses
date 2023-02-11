@@ -1,0 +1,350 @@
+---
+title: "practicum2.Xinhao.Sun"
+author: "Xinhao Sun"
+date: "11/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## initial
+```{r, message=FALSE}
+rm(list=ls())
+library(RSQLite)
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+```
+
+# Part 1
+
+## question 1
+```{r}
+my_database = src_sqlite("practicum2_p1.db", create = TRUE) # create =TRUE creates a new database
+conn <- dbConnect(SQLite(), "practicum2_p1.db")
+
+customers = read_csv('customers.csv')
+orders = read_csv('orders.csv')
+router_info = read_csv('Router_Info.csv')
+# copy does not function 
+#copy_to(my_database,customers)
+
+dbWriteTable(conn,"customers",customers,overwrite=TRUE)
+dbWriteTable(conn,"orders",orders,overwrite=TRUE)
+dbWriteTable(conn,"Router_Info",router_info,overwrite=TRUE)
+```
+
+## question 2
+```{r}
+str(customers)
+```
+
+```{r}
+str(orders)
+```
+
+
+```{r}
+str(router_info)
+```
+
+#### we can easily found these three tables have same quantity(499) of observation. I prefer to use full join to connect these tables for keeping all information. 
+
+```{r}
+dbGetQuery(conn," CREATE TABLE order_cus_router AS
+           SELECT * 
+           FROM orders 
+           FULL JOIN customers ON orders.CustomerID = customers.CustomerID 
+           FULL JOIN Router_Info ON orders.OrderID = Router_Info.OrderID")
+
+```
+
+#### After full join the number of observation still be same, which means there is no missing information at all.
+
+## question 3
+```{r}
+cost_less_200 = dbGetQuery(conn, "SELECT *
+           FROM orders
+           WHERE Cost < 200
+           LIMIT 20;")
+kable(cost_less_200) %>%
+  kable_styling("responsive", full_width = F)
+```
+## question 4
+```{r}
+full_info = dbGetQuery(conn,"SELECT * 
+           FROM orders 
+           FULL JOIN customers ON orders.CustomerID = customers.CustomerID 
+           FULL JOIN Router_Info ON orders.OrderID = Router_Info.OrderID
+           LIMIT 10;")
+kable(full_info) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+## qeustion 5
+```{r}
+left_join = dbGetQuery(conn,"SELECT * 
+           FROM orders 
+           LEFT JOIN customers ON orders.CustomerID = customers.CustomerID
+           LIMIT 10;")
+kable(left_join) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+## question 6
+```{r}
+top_sum = dbGetQuery(conn,"SELECT State,
+                    	   Year_Purchase,
+                    	   count(*) as order_count,
+                    	   sum(cost) as Cost
+                 FROM order_cus_router
+                 GROUP BY State, Year_Purchase
+                 HAVING count(*) > 5
+                 ORDER BY sum(cost) DESC;")
+kable(top_sum) %>%
+  kable_styling("responsive", full_width = F) %>%
+  row_spec(1:3, bold = T, color = "white", background = "#D7261E")
+```
+## question7
+Create a query that counts and distinctly counts
+```{r}
+count = dbGetQuery(conn, "select count(*) as totalCount,
+                         count(distinct Year_Purchase) as YearDistinct
+                    from order_cus_router")
+
+kable(count) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+## question8
+Create a query that finds the MIN, MAX, Sum, order by desc
+```{r}
+summary_query = dbGetQuery(conn, "select Year_Purchase,
+                    	   min(cost) as minCost,
+                    	   max(cost) as maxCost,
+                    	   sum(cost) as totalCost
+                    from order_cus_router
+                    group by Year_Purchase
+                    order by sum(cost) DESC")
+kable(summary_query) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+
+## question9
+Create a query that uses Between, and, <, >
+```{r}
+year_between = dbGetQuery(conn, "select orderID, customerID, Year_Purchase, Cost, firstname, lastname,
+                    state, city
+                    from order_cus_router
+                    where Year_Purchase between 2018 and 2019 
+                          and cost > 10 and cost < 30")
+kable(year_between) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+
+## question10
+Create a query that uses a wildcard, a join, and a group by clause
+```{r}
+wildcard_query = dbGetQuery(conn, "select orders.Year_Purchase,
+                      		Router_Info.Reason,
+                      		sum(cost) as totalCost
+                    from orders
+                    left join Router_Info on orders.OrderID = Router_Info.OrderID
+                    where orders.SKU like '%BAS%'
+                  group by orders.Year_Purchase,
+                      		Router_Info.Reason;")
+kable(wildcard_query) %>%
+  kable_styling("responsive", full_width = F)
+
+```
+
+## question11
+Create a query that finds the average and uses one of the following AND, OR, NOT
+```{r}
+ave_query = dbGetQuery(conn, "select Router_Info.Reason,
+                      		AVG(cost) as averageCost
+                    from orders
+                    left join Router_Info on orders.OrderID = Router_Info.OrderID
+                    where (orders.SKU like '%BAS%') or (orders.SKU like '%ADV%') 
+                          and orders.Year_Purchase = 2021
+                  group by Router_Info.Reason;")
+ 
+kable(ave_query) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+##ending
+```{r}
+dbDisconnect(conn)
+```
+
+# part 2
+## Question 1
+
+```{r}
+my_database = src_sqlite("practicum2_p2.db", create = TRUE) # create =TRUE creates a new database
+conn <- dbConnect(SQLite(), "practicum2_p2.db")
+
+country_info <- read_csv("country_info.csv")
+dbWriteTable(conn,"country_info",country_info,overwrite=TRUE)
+
+HIV_info <- read_csv("HIV_info.csv")
+dbWriteTable(conn,"HIV_info",HIV_info,overwrite=TRUE)
+
+dbGetQuery(conn,"CREATE TABLE HIV_country AS
+           SELECT * 
+           FROM country_info AS a
+           FULL JOIN HIV_info AS b 
+           ON a.Country = b.Entity and a.Year = b.Year")
+```
+
+#### From the the screenshot of these two tables, we can easily found these three tables have same quantity(499) of observation. I prefer to use inner join to connect these tables for explore the character of HIV.
+
+## Question 2
+```{r}
+top_new_case = dbGetQuery(conn, "SELECT a.Country,
+                         a.Year,
+                         b.new_cases_of_hiv_infection,
+                         a.School_enrollment_rate
+                  FROM country_info as a
+                  INNER JOIN HIV_info as b on a.Country = b.Entity and a.Year = b.Year
+                  WHERE a.Country = 'North America'
+                  ORDER BY b.new_cases_of_hiv_infection DESC;")
+kable(top_new_case) %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1:5, bold = T, color = "white", background = "#D7261E")
+
+# inspect the structure of top_new_case
+str(top_new_case)
+# transform the School_enrollment_rate into num format for plot
+top_new_case$School_enrollment_rate = sapply(top_new_case$School_enrollment_rate,as.numeric)
+str(top_new_case)
+ggplot(top_new_case) + 
+  geom_point(aes(School_enrollment_rate,new_cases_of_hiv_infection)) +
+  geom_smooth(aes(School_enrollment_rate,new_cases_of_hiv_infection)) +
+  theme_bw()
+
+ggplot(top_new_case) + 
+  geom_point(aes(Year,new_cases_of_hiv_infection)) +
+  geom_smooth(aes(Year,new_cases_of_hiv_infection)) +
+  theme_bw()
+```
+
+#### From the plot above, it is hard to tell the relationship between new case of HIV and school_enrollment_rate. On the other hand, we should pay serious attention to the recent increase on the new case of HIV.
+
+## question3
+```{r}
+living = dbGetQuery(conn, "select a.Country,
+                   a.Year,
+                   a.Country_Population,
+                   1000000*b.number_of_people_living_with_HIV/cast(a.Country_Population as float) 
+                   as Pct_of_people_living_with_HIV_per_Million,
+                   1000000*b.deaths_total/cast(a.Country_Population as float) 
+                   as Pct_of_deaths_from_HIV_per_Million
+              from country_info as a
+              inner join HIV_info as b on a.Country = b.Entity and a.Year = b.Year
+              where a.Country = 'North America'
+           ORDER BY Pct_of_people_living_with_HIV_per_Million DESC")
+
+kable(living) %>%
+  kable_styling("striped", full_width = F) %>% 
+  row_spec(1:5, bold = T, color = "white", background = "#D7261E")
+
+liv_plot = ggplot(living,aes(Pct_of_people_living_with_HIV_per_Million,Pct_of_deaths_from_HIV_per_Million, label = Year)) +
+  geom_point() 
+liv_plot + geom_smooth() +geom_text() + theme_bw()
+
+```
+
+#### From the line plot, we can find the living_rate for HIV patients is increasing from 2007 to 2015 and the Pct_of_deaths_from_HIV_per_Million is decreasing dramatically as the Pct_of_people_living_with_HIV_per_Million rocketing.
+
+## question 4
+```{r}
+living_ratio = dbGetQuery(conn, "select a.Country,
+                   sum(b.number_of_people_living_with_HIV/cast(a.Country_Population as float)) 
+                   as living_people_with_HIV_divided_by_population
+              from country_info as a
+              inner join HIV_info as b on a.Country = b.Entity and a.Year = b.Year
+              where a.Country <> 'North America'
+              group by a.Country")
+kable(living_ratio) %>%
+  kable_styling("striped", full_width = F)
+```
+
+## question5
+Produce 5 unique and interesting queries using both datasets.
+```{r}
+recent_year = dbGetQuery(conn, "select Entity,Year,
+                    		number_of_people_infected_with_hiv,
+                    		number_of_people_living_with_HIV, deaths_total 
+                    from HIV_info
+                    where year in (select max(year) from HIV_info)")
+kable(recent_year) %>%
+  kable_styling("responsive", full_width = F)
+
+```
+
+
+```{r}
+query_2013 = dbGetQuery(conn, "select a.*,
+                    		 b.*
+                    from country_info as a
+                    inner join HIV_info as b on 
+                        a.Country = b.Entity 
+                        and a.year = b.year 
+                        and a.Year = 2013")
+kable(query_2013) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+
+
+```{r}
+death_total = dbGetQuery(conn, "select a.Entity,
+              	   a.year,
+              	   a.deaths_total,
+              	   b.Country_Population,
+              	   b.unemployment_rate,
+              	   b.School_enrollment_rate
+              from HIV_info as a
+              inner join country_info as b on a.Entity = b.Country and a.year = b.Year
+              where a.deaths_total > 10000")
+kable(death_total) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+```{r}
+max_newcase = dbGetQuery(conn, "select a.Entity,
+                        a.Year, 
+                        a.new_cases_of_hiv_infection
+                from HIV_info as a
+                inner join
+                (select Entity, max(new_cases_of_hiv_infection) as newcases
+                from HIV_info
+                group by Entity) as b 
+                    on a.Entity = b.Entity 
+                    and a.new_cases_of_hiv_infection = b.newcases")
+kable(max_newcase) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+```{r}
+total_death = dbGetQuery(conn, "SELECT Entity,
+                  SUM(new_cases_of_hiv_infection) as total_new_cases_of_hiv_infection,
+                  SUM(deaths_total) as total_deaths
+                  FROM HIV_info
+                  GROUP by Entity;")
+kable(total_death) %>%
+  kable_styling("responsive", full_width = F)
+```
+
+
+```{r}
+dbDisconnect(conn)
+```
+
